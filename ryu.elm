@@ -8,8 +8,22 @@ import Debug
 
 type Model =
     {
-      player1: Character,
-      player2: Character
+      player1 : Character,
+      player2 : Character
+    }
+
+type Rectangle =
+    {
+      height : Float,
+      width  : Float
+    }
+
+type AttackDimensions =
+    {
+      xMin   : Float,
+      xMax   : Float,
+      yMin   : Float,
+      yMax   : Float
     }
 
 type KeyMap =
@@ -50,9 +64,11 @@ playerTwoKeyMap =
 type Attack =
     {
        name      : String,
+       registered: Bool,
        timeLeft  : Float,
        weight    : Int,
-       priority  : Int
+       priority  : Int,
+       attackBox : Rectangle
     }
 
 type Character =
@@ -85,6 +101,102 @@ type Keys =
       lowKick     : Bool
     }
 
+highPunch : Attack
+highPunch = {
+  name = "highPunch",
+  timeLeft = 35,
+  registered = False,
+  weight = 10,
+  priority =  3,
+  attackBox = {
+    height = 10,
+    width = 80
+  }}
+
+mediumPunch : Attack
+mediumPunch = {
+  name = "mediumPunch",
+  timeLeft = 20,
+  registered = False,
+  weight = 7,
+  priority = 2,
+  attackBox = {
+    width = 50,
+     height = 10
+  }}
+
+lowPunch : Attack
+lowPunch = {
+  name = "lowPunch",
+  timeLeft = 10,
+  registered = False,
+  weight = 4,
+  priority = 1,
+  attackBox = {
+    width = 70,
+     height = 10
+  }}
+
+highKick : Attack
+highKick = {
+  name = "highKick",
+  timeLeft = 40,
+  registered = False,
+  weight = 10,
+  priority = 3,
+  attackBox = {
+    width = 80,
+    height = 20
+  }}
+
+mediumKick : Attack
+mediumKick = {
+  name = "mediumKick",
+  timeLeft = 20,
+  registered = False,
+  weight = 7,
+  priority = 2,
+  attackBox = {
+    width = 70,
+    height = 5
+  }}
+
+lowKick : Attack
+lowKick = {
+  name = "lowKick",
+  timeLeft = 15,
+  registered = False,
+  weight = 4,
+  priority = 1,
+  attackBox = {
+    width = 60,
+    height = 5
+  }}
+
+nullAttack : Attack
+nullAttack = {
+  name = "None",
+  timeLeft = 0,
+  registered = True,
+  weight = 0,
+  priority = 0,
+  attackBox = {
+    width = 0,
+    height = 0
+  }}
+
+isHitAttack : Attack
+isHitAttack = {
+  name = "isHit",
+  timeLeft = 15,
+  registered = True,
+  weight = 0,
+  priority = -1,
+  attackBox = {
+    width = 0,
+    height = 0
+  }}
+
 ryu : Character
 ryu =
     { x = 0
@@ -92,7 +204,7 @@ ryu =
     , vx = 0
     , vy = 0
     , dir = Right
-    , attack = {name = "highPunch", timeLeft = 0, weight = 10, priority = 3}
+    , attack = nullAttack
     , crouched = False
     , health = 100
     }
@@ -114,15 +226,16 @@ hFlip  ryu = if  | ryu.dir == Right -> {ryu | dir <- Left}
 
 step : (Float, Keys, Keys) -> Model -> Model
 step (dt, playerOneKeys, playerTwoKeys) worldState =
-    let newPlayer1 = stepCharacter worldState.player1 dt playerOneKeys playerTwoKeys
-        newPlayer2 = stepCharacter worldState.player2 dt playerTwoKeys playerOneKeys
+    let newPlayer1 = stepCharacter worldState.player1 worldState.player2 dt playerOneKeys playerTwoKeys
+        newPlayer2 = stepCharacter worldState.player2 worldState.player1 dt playerTwoKeys playerOneKeys
     in
       {worldState | player1 <- newPlayer1, player2 <- newPlayer2}
 
-stepCharacter : Character -> Float -> Keys -> Keys -> Character
-stepCharacter ryu dt myKeys opponentKeys =
-    ryu
+stepCharacter : Character -> Character -> Float -> Keys -> Keys -> Character
+stepCharacter myCharacter opponentCharacter dt myKeys opponentKeys =
+    myCharacter
         |> (chooseAttack myKeys) dt
+        |> respondToHit opponentKeys myKeys opponentCharacter
         |> gravity dt
         |> jump myKeys
         |> walk myKeys
@@ -137,28 +250,73 @@ jump keys ryu =
             if keys.position.y < 0 then { ryu | crouched <- True} else { ryu | crouched <- False}
         | otherwise -> ryu
 
-attack attackType attackName attackTime attackWeight attackPriority keys dt ryu =
-    if  | (attackType keys) && ryu.attack.timeLeft <= 0 ->
-            {ryu | attack <- { name = attackName, timeLeft = attackTime, weight = attackWeight, priority = attackPriority }}
+updateAttackTime : Attack -> Float -> Attack
+updateAttackTime attack dt = {attack | timeLeft <- max 0 attack.timeLeft - dt, registered <- True}
+
+attack attackRecord keys dt ryu =
+    if  | ryu.attack.timeLeft <= 0 ->
+            {ryu | attack <- attackRecord}
         | ryu.attack.timeLeft > 0 ->
-            {ryu | attack <- { name = ryu.attack.name, timeLeft = max 0 ryu.attack.timeLeft - dt, weight = ryu.attack.weight, priority = ryu.attack.priority}}
+            {ryu | attack <- (updateAttackTime ryu.attack dt)}
         | otherwise ->
             ryu
 
 {--}
-chooseAttack keys = if   | keys.highPunch -> attack .highPunch "highPunch" 35 10 3 keys
-                         | keys.mediumPunch -> attack .mediumPunch "mediumPunch" 20 7 2 keys
-                         | keys.lowPunch -> attack .lowPunch "lowPunch" 10 4 1 keys
-                         | keys.highKick -> attack .highKick "highKick" 40 10 3 keys
-                         | keys.mediumKick -> attack .mediumKick "mediumKick" 20 7 2 keys
-                         | keys.lowKick -> attack .lowKick "lowKick" 15 4 1 keys
-                         | otherwise -> attack .lowKick "None" 0 0 0 keys
+chooseAttack keys = attack (getAttack keys) keys
 --}
+
+getAttack : Keys -> Attack
+getAttack keys = if      | keys.highPunch ->  highPunch
+                         | keys.mediumPunch ->  mediumPunch
+                         | keys.lowPunch ->  lowPunch
+                         | keys.highKick ->  highKick
+                         | keys.mediumKick ->  mediumKick
+                         | keys.lowKick ->  lowKick
+                         | otherwise ->  nullAttack
+
+
+getAttackDimensions : Character -> Rectangle -> AttackDimensions
+getAttackDimensions character attackBox =
+  if  | character.dir == Right -> {
+          xMin = character.x,
+          xMax = character.x + attackBox.width,
+          yMin = character.y,
+          yMax = character.y + attackBox.height
+        }
+      | otherwise -> {
+          xMin = character.x - attackBox.width,
+          xMax = character.x,
+          yMin = character.y,
+          yMax = character.y + attackBox.height
+      }
+
+inHitRadius : Character -> AttackDimensions -> Bool
+inHitRadius character dimensions =
+  if  | (character.x >= dimensions.xMin &&
+        character.x <= dimensions.xMax &&
+        character.y >= dimensions.yMin &&
+        character.y <= dimensions.yMax) ->
+          True
+      | otherwise ->
+          False
+
+respondToHit : Keys -> Keys -> Character -> Character ->  Character
+respondToHit opponentKeys playerKeys opponentCharacter myCharacter =
+  let opponentAttack = (getAttack opponentKeys)
+      myAttack = (getAttack playerKeys)
+  in
+    if  | not opponentAttack.registered &&
+          opponentAttack.priority > myAttack.priority &&
+          (inHitRadius myCharacter (getAttackDimensions opponentCharacter opponentAttack.attackBox)) ->
+            {myCharacter | health <- myCharacter.health - opponentAttack.weight, attack <- isHitAttack}
+        | otherwise ->
+            myCharacter
+
 
 gravity : Float -> Character -> Character
 gravity dt ryu =
     { ryu |
-        vy <- if ryu.y > 0 then ryu.vy - dt/4 else 0
+        vy <- if ryu.y > 0 then ryu.vy - dt/10 else 0
     }
 
 physics : Float -> Character -> Character
