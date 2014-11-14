@@ -19,6 +19,7 @@ type Model =
     , dir : Direction
     , punch: Attack
     , kick: Attack
+    , crouched: Bool
     }
 
 data Direction = Left | Right
@@ -45,6 +46,7 @@ ryu =
     , dir = Right
     , punch = {level = 0, timeLeft = 0}
     , kick = {level = 0, timeLeft = 0}
+    , crouched = False
     }
 
 
@@ -70,7 +72,7 @@ jump keys ryu =
     if  | keys.position.y > 0 && ryu.vy == 0 ->
             { ryu | vy <- 6.0 }
         | ryu.vy == 0 && ryu.y == 0 ->
-            { ryu | y <- (Debug.watch "y pos" (toFloat keys.position.y))}
+            if keys.position.y < 0 then { ryu | crouched <- True} else { ryu | crouched <- False}
         | otherwise -> ryu
 
 punch: Keys -> Model -> Model
@@ -122,14 +124,14 @@ display : (Int, Int) -> Model -> Element
 display (w',h') ryu =
   let (w,h) = (toFloat w', toFloat h')
 
-      verb = if | ryu.punch.level == 1 -> "lowPunch"
+      verb = if | ryu.crouched -> "crouch"
+                | ryu.punch.level == 1 -> "lowPunch"
                 | ryu.punch.level == 2 -> "mediumPunch"
                 | ryu.punch.level == 3 -> "highPunch"
                 | ryu.kick.level == 1 -> "lowKick"
                 | ryu.kick.level == 2 -> "mediumKick"
                 | ryu.kick.level == 3 -> "highKick"
                 | ryu.y  >  0 -> "jump"
-                | ryu.y  <  0 -> "crouch"
                 | ryu.vx /= 0 -> "walk"
                 | otherwise     -> "stand"
 
