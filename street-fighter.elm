@@ -188,7 +188,7 @@ nullAttack = {
 isHitAttack : Attack
 isHitAttack = {
   name = "isHit",
-  timeLeft = 15,
+  timeLeft = 50,
   registered = True,
   weight = 0,
   priority = -1,
@@ -316,7 +316,7 @@ respondToHit opponentKeys playerKeys opponentCharacter myCharacter =
 gravity : Float -> Character -> Character
 gravity dt ryu =
     { ryu |
-        vy <- if ryu.y > 0 then ryu.vy - dt/10 else 0
+        vy <- if ryu.y > 0 then ryu.vy - dt/4 else 0
     }
 
 physics : Float -> Character -> Character
